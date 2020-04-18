@@ -38,10 +38,10 @@ struct cpu*
 mycpu(void)
 {
   int apicid, i;
-  
+
   if(readeflags()&FL_IF)
     panic("mycpu called with interrupts enabled\n");
-  
+
   apicid = lapicid();
   // APIC IDs are not guaranteed to be contiguous. Maybe we should have
   // a reverse map, or reserve a register to store &cpus[i].
@@ -112,6 +112,9 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  // Lab 1
+  p->numSysCalls = 0;
+
   return p;
 }
 
@@ -124,7 +127,7 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
-  
+
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
@@ -275,7 +278,7 @@ wait(void)
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
-  
+
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
@@ -325,7 +328,7 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -418,7 +421,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  
+
   if(p == 0)
     panic("sleep");
 
@@ -541,12 +544,22 @@ int
 info(int param) {
     int processCount = 0;
     struct proc* p;
-    
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-      if(p->state != UNUSED) {
-          processCount += 1;
-      }
-    }
 
-    return processCount;
+    switch(param) {
+        case 1:
+            for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+              if(p->state != UNUSED) {
+                  processCount += 1;
+              }
+            }
+            return processCount;
+        case 2:
+            p = myproc();
+            return p->numSysCalls;
+        case 3:
+            p = myproc();
+            return p->sz / PGSIZE;
+        default:
+            return -1;
+    }
 }
