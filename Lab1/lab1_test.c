@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
 
     // Test info(3)
     value3 = info(3);
-    malloc(24);
+    sbrk(9000);
     value4 = info(3);
 
     // Output info(1) info
@@ -36,7 +36,7 @@ Got %d processes the second time.\n\n", value, value5);
 20 times, and called info(2) again.\nGot %d system calls the second time.\n\n", value1, value2);
 
     // Output info(3) info
-    printf(1, "Called info(3), got %d pages.\nThen called malloc(24), \
+    printf(1, "Called info(3), got %d pages.\nThen called sbrk(9000), \
 and called info(3) again.\nGot %d pages the second time.\n", value3, value4);
     exit();
 }
