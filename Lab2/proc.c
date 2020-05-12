@@ -116,7 +116,7 @@ found:
   p->numSysCalls = 0;
 
   // Lab 2
-  p->numTickets = 0;
+  p->numTickets = 100000;
   p->stride = .001;
   // Make pass small to give unitialized processes chance to initialize tickets
   p->pass = p->stride;
@@ -149,7 +149,7 @@ userinit(void)
   p->tf->eip = 0;  // beginning of initcode.S
 
   // Lab 2
-  p->numTickets = 1;
+  p->numTickets = 100000;
   p->stride = .001;
   p->pass = p->stride;
   p->numTimesScheduled = 0;
@@ -214,6 +214,7 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+
   // Lab 2
   np->numTickets = curproc->numTickets;
   np->stride = curproc->stride;
@@ -295,7 +296,6 @@ wait(void)
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
-
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
@@ -331,6 +331,16 @@ wait(void)
   }
 }
 
+unsigned long randstate = 1;
+
+unsigned int
+rand()
+{
+  randstate = randstate * 1664525 + 1013904223;
+  return randstate;
+}
+
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -348,34 +358,74 @@ scheduler(void)
   c->proc = 0;
 
 # ifdef LOTTERY
-  for(;;){
-    // Enable interrupts on this processor.
-    sti();
+  int totalNumberOfTickets = 0;
+  int runningSumOfNumTickets = 0;
+  struct proc* schedProc = 0;
 
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+  // Never return
+  for(;;){
+      runningSumOfNumTickets = 0;
+      totalNumberOfTickets = 0;
+      schedProc = 0;
+
+      // Enable interrupts on this processor.
+      sti();
+
+      // Get total number of tickets
+      acquire(&ptable.lock);
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+          if (p->state == RUNNABLE) {
+              totalNumberOfTickets += p->numTickets;
+          }
+      }
+
+      // If no runnable states, loop
+      if(totalNumberOfTickets == 0) {
+          release(&ptable.lock);
+          continue;
+      }
+
+      // Get random value
+      int randomToScheduleValue = rand();
+      if (randomToScheduleValue < 0) {
+          randomToScheduleValue *= -1;
+      }
+      randomToScheduleValue = randomToScheduleValue % totalNumberOfTickets;
+
+      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+          if(p->state == RUNNABLE) {
+              runningSumOfNumTickets += p->numTickets;
+              if(runningSumOfNumTickets > randomToScheduleValue) {
+                  schedProc = p;
+                  break;
+              }
+          }
+      }
+
+      // If didn't find process to schedule, loop
+      if(schedProc == 0) {
+          release(&ptable.lock);
+          continue;
+      }
+      // Update chosen process numTimesScheduled for Lab 2 information reporting
+      schedProc->numTimesScheduled += 1;
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-      p->numTimesScheduled += 1;
+      c->proc = schedProc;
+      switchuvm(schedProc);
+      schedProc->state = RUNNING;
 
-      swtch(&(c->scheduler), p->context);
+      swtch(&(c->scheduler), schedProc->context);
       switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-    }
-    release(&ptable.lock);
-
+      release(&ptable.lock);
   }
+
 #endif
 
 // Lab 2
@@ -642,7 +692,7 @@ initTickets(int numTickets) {
     p->pass = p->stride;
 }
 
-// Lab 2; Print number of times a process with label was scheduled
+// Lab 2; Print number of times a process has been scheduled.
 void
 getAllLabeledCounts(void) {
     struct proc* p = 0;

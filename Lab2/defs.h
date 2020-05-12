@@ -126,7 +126,6 @@ int             info(int param);
 
 // Lab 2
 void            initTickets(int numTickets);
-void            setProcessLabel(char* label);
 void            getAllLabeledCounts();
 
 // swtch.S
